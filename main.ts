@@ -50,7 +50,11 @@ function closeUsdc(state: BarsState): number | null {
   const raw = state.close(SYMBOL);
   if (raw === null) return null;
   const scale = state.symbols.get(SYMBOL)?.price_scale ?? 5;
-  return Number(raw) / 10 ** scale;
+  const value = Number(raw) / 10 ** scale;
+  // Defensive: a malformed close (NaN / Infinity) is not a price —
+  // treat it as a missing bar rather than letting it poison the range.
+  if (!Number.isFinite(value)) return null;
+  return value;
 }
 
 await runBars({
@@ -71,6 +75,9 @@ await runBars({
       let lo = Infinity;
       let hi = -Infinity;
       for (const v of window) {
+        // Defensive: skip any non-finite value so a bad close can never
+        // stretch the range and move the buy/sell zones.
+        if (!Number.isFinite(v)) continue;
         if (v < lo) lo = v;
         if (v > hi) hi = v;
       }
